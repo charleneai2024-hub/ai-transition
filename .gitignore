@@ -1,0 +1,14 @@
+# secrets — NEVER commit
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# data — don't commit raw datasets
+data/*.csv
+data/*.parquet
+
+# os
+.DS_Store
