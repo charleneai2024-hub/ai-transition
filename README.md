@@ -40,3 +40,59 @@ uv run src/hello.py
 ```
 
 Success = you see `✅ LLM replied:` followed by a sentence.
+
+## Day 2 (Tue 7/8) — load + clean feedback data
+
+```bash
+uv run src/load_feedback.py
+```
+
+Reads `data/sentimentdataset.csv`, collapses the raw fine-grained emotion
+labels into 3 classes (`positive` / `negative` / `neutral`), and writes the
+cleaned dataset to `data/feedback_clean.parquet`.
+
+Success = the script prints the raw shape, the cleaned shape, and the
+3-class distribution, then reports `Saved -> data/feedback_clean.parquet`.
+
+## Day 3 (Wed 7/9) — Pydantic models for structured LLM output
+
+`src/models.py` has no script to run on its own — it defines the schemas
+(`FeedbackLabel`, `FeedbackBatch`, `WeeklyInsight`) that every later script
+imports. Exercise it directly with a quick check:
+
+```bash
+uv run python -c "
+from src.models import FeedbackLabel
+print(FeedbackLabel(sentiment='positive', topic='ui', confidence=0.9))
+"
+```
+
+Success = a `FeedbackLabel(...)` instance prints back; passing an invalid
+`sentiment` or a `confidence` outside `[0, 1]` raises a `ValidationError`.
+
+## Day 4 (Thu 7/10) — reusable LLM client with retry
+
+```bash
+uv run src/try_structured.py
+```
+
+Pulls one row of real feedback, calls `call_llm` (from `src/llm_client.py`)
+to label it, and parses the JSON reply into a `FeedbackLabel`.
+
+Success = you see the feedback text, the raw LLM JSON, the parsed
+`FeedbackLabel(...)`, and a `[llm_client] ... cost=$...` line showing token
+usage and estimated cost.
+
+## Day 5 (Fri 7/11) — end-to-end pipeline
+
+```bash
+uv run src/pipeline_demo.py
+```
+
+Samples 5 feedback rows (fixed `random_state` for reproducibility), labels
+each one through `call_llm`, validates every reply against `FeedbackLabel`
+(skipping and logging any row that fails validation instead of crashing),
+and assembles the successes into a `FeedbackBatch`.
+
+Success = a `--- Results ---` block listing each feedback preview with its
+sentiment/topic/confidence, followed by a `Succeeded: N, Failed: M` summary.
