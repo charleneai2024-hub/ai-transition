@@ -6,7 +6,7 @@ script is the reproducible record of what the data looks like.
 
 import pandas as pd
 
-DATA_PATH = "data/Predictive Maintenance Dataset (AI4I 2020).csv"
+DATA_PATH = "data/machine_failure.csv"
 TARGET_COLUMN = "Machine failure"
 FAILURE_MODE_COLUMNS = ["TWF", "HDF", "PWF", "OSF", "RNF"]
 NUMERIC_COLUMNS = [
