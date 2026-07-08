@@ -8,6 +8,8 @@ dependencies = [
     "python-dotenv>=1.0",
     "pandas>=2.0",
     "pyarrow>=21.0.0",
+    "matplotlib>=3.9.4",
+    "seaborn>=0.13.2",
 ]
 
 # Tell uv this is an app, not a library to build/install — just manage deps.
