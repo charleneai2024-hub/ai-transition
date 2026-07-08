@@ -3,6 +3,13 @@
 A 16-week Data Analyst → AI engineering transition project.
 Building toward a flagship **User Insight Copilot** (LLM classification + RAG + agent + deployment).
 
+## Data
+
+This project uses two datasets:
+
+1. **Social media sentiment data** — already cleaned and included in the repo at `data/feedback_clean.parquet` (see `src/load_feedback.py` for the cleaning pipeline).
+2. **AI4I 2020 Predictive Maintenance Dataset** — not included in the repo. Download it from [Kaggle](https://www.kaggle.com/datasets/stephanmatzka/predictive-maintenance-dataset-ai4i-2020) or the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), and place the CSV at `data/Predictive Maintenance Dataset (AI4I 2020).csv`. See `src/inspect_machine_data.py` for an initial data-quality check.
+
 ## Week 1 — build a tiny LLM app while refreshing Python
 
 **Status: complete ✅**
