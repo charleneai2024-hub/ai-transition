@@ -103,3 +103,27 @@ and assembles the successes into a `FeedbackBatch`.
 
 Success = a `--- Results ---` block listing each feedback preview with its
 sentiment/topic/confidence, followed by a `Succeeded: N, Failed: M` summary.
+
+## Week 2 — predictive maintenance dataset
+
+**Status: in progress**
+
+| Day | File | Goal |
+|-----|------|------|
+| Tue 7/8 | `src/inspect_machine_data.py` | Inspect the AI4I 2020 predictive maintenance dataset ✅ |
+
+### Day 1 (Tue 7/8) — inspect the AI4I predictive maintenance dataset
+
+```bash
+uv run src/inspect_machine_data.py
+```
+
+Loads `data/Predictive Maintenance Dataset (AI4I 2020).csv` and prints
+shape/dtypes, missing values, the `Machine failure` class balance,
+consistency between the aggregate failure flag and the 5 individual
+failure-mode flags, and numeric feature ranges.
+
+Success = a report with all 5 sections prints cleanly. Key findings so far:
+no missing values, but severe class imbalance (only ~3.4% of rows are
+`Machine failure = 1`), and a small number of rows (~27) where the
+aggregate flag disagrees with the individual failure-mode flags.
