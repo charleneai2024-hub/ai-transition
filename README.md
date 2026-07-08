@@ -7,7 +7,7 @@ Building toward a flagship **User Insight Copilot** (LLM classification + RAG + 
 
 This project uses two datasets:
 
-1. **Social media sentiment data** — already cleaned and included in the repo at `data/feedback_clean.parquet` (see `src/load_feedback.py` for the cleaning pipeline).
+1. **Social media sentiment data** — the raw CSV and the cleaned output are both excluded via `.gitignore` (`data/*.csv`, `data/*.parquet`); run `src/load_feedback.py` to generate `data/feedback_clean.parquet` locally.
 2. **AI4I 2020 Predictive Maintenance Dataset** — not included in the repo. Download it from [Kaggle](https://www.kaggle.com/datasets/stephanmatzka/predictive-maintenance-dataset-ai4i-2020) or the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), and place the CSV at `data/machine_failure.csv`. See `src/inspect_machine_data.py` for an initial data-quality check.
 
 ## Week 1 — build a tiny LLM app while refreshing Python
@@ -111,6 +111,7 @@ sentiment/topic/confidence, followed by a `Succeeded: N, Failed: M` summary.
 | Day | File | Goal |
 |-----|------|------|
 | Tue 7/8 | `src/inspect_machine_data.py` | Inspect the AI4I 2020 predictive maintenance dataset ✅ |
+| Tue 7/8 | `src/eda_machine.py` | EDA (distribution plots, correlation heatmap, failure rate by Type) + feature engineering ✅ |
 
 ### Day 1 (Tue 7/8) — inspect the AI4I predictive maintenance dataset
 
@@ -127,3 +128,44 @@ Success = a report with all 5 sections prints cleanly. Key findings so far:
 no missing values, but severe class imbalance (only ~3.4% of rows are
 `Machine failure = 1`), and a small number of rows (~27) where the
 aggregate flag disagrees with the individual failure-mode flags.
+
+### Day 2 (Tue 7/8) — EDA + feature engineering
+
+```bash
+uv run src/eda_machine.py
+```
+
+For each of the 5 numeric sensor features, saves a boxplot comparing the
+failure vs no-failure distributions to `figures/`, plus a correlation
+heatmap over all numeric features and the target. Also prints the failure
+rate broken down by machine `Type`, and ranks the 5 features by Cohen's d
+(standardized mean difference between the failure and no-failure groups).
+Then engineers two domain-driven features (`temp_diff` = process temp − air
+temp; `power` = torque × rotational speed), ordinally encodes `Type`
+(L=0/M=1/H=2), drops leaky/ID columns (`UDI`, `Product ID`, and the 5
+individual failure-mode flags), and saves the result to
+`data/machine_model_ready.parquet` (gitignored — generate it locally by
+running the script).
+
+Success = 6 PNGs appear under `figures/`, and the script ends with a
+`Saved modeling-ready data (10000 rows, 9 cols) -> data/machine_model_ready.parquet`
+line.
+
+**Analysis results:**
+
+- **Failure rate by Type**: L = 3.92%, M = 2.77%, H = 2.09% — lower-tier
+  machines fail more often than higher-tier ones.
+- **Feature separation (Cohen's d, failure vs no-failure), ranked**:
+  Torque (1.077) > Tool wear (0.586) > Air temperature (0.458) >
+  Rotational speed (−0.244) > Process temperature (0.199).
+  **Torque is by far the most discriminative single feature** — its
+  boxplot shows almost no overlap between the two groups (median ~40 Nm for
+  no-failure vs ~53 Nm for failure), consistent with high torque signaling
+  an overload condition.
+- **Correlated feature pairs**: Air/Process temperature (r = 0.88) and
+  Rotational speed/Torque (r = −0.88) are both strongly correlated —
+  this is the motivation for the two engineered features: `temp_diff`
+  captures the *relative* temperature gap (a proxy for abnormal cooling)
+  instead of two redundant absolute temperatures, and `power` combines
+  torque and speed into a single proxy for mechanical load instead of two
+  features that mostly move in opposite directions.
