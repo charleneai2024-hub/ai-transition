@@ -10,5 +10,8 @@ __pycache__/
 data/*.csv
 data/*.parquet
 
+# models — regenerate locally, don't commit trained binaries
+models/*.joblib
+
 # os
 .DS_Store
