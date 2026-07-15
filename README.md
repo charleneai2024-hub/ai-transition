@@ -112,6 +112,8 @@ sentiment/topic/confidence, followed by a `Succeeded: N, Failed: M` summary.
 |-----|------|------|
 | Tue 7/8 | `src/inspect_machine_data.py` | Inspect the AI4I 2020 predictive maintenance dataset ✅ |
 | Tue 7/8 | `src/eda_machine.py` | EDA (distribution plots, correlation heatmap, failure rate by Type) + feature engineering ✅ |
+| Tue 7/8 | `src/train_baseline.py` | Baseline model comparison: Dummy vs Logistic Regression vs Random Forest ✅ |
+| Wed 7/9 | `src/pipeline_model.py` | Refactor into sklearn Pipeline + 5-fold cross-validated model selection ✅ |
 
 ### Day 1 (Tue 7/8) — inspect the AI4I predictive maintenance dataset
 
@@ -169,3 +171,82 @@ line.
   instead of two redundant absolute temperatures, and `power` combines
   torque and speed into a single proxy for mechanical load instead of two
   features that mostly move in opposite directions.
+
+### Day 3 (Tue 7/8) — baseline model comparison
+
+```bash
+uv run src/train_baseline.py
+```
+
+Stratified 80/20 train/test split (`random_state=42`) on
+`data/machine_model_ready.parquet`. Trains and evaluates three models on
+the held-out test set: a `DummyClassifier` that always predicts "no
+failure" (the control group), `LogisticRegression(class_weight="balanced")`
+with `StandardScaler`, and `RandomForestClassifier(class_weight="balanced")`
+without scaling. Reports accuracy/precision/recall/F1 (failure class) and
+the confusion matrix for each, and saves a Random Forest feature-importance
+bar chart to `figures/feature_importance.png`.
+
+Success = all three models' metrics print, plus
+`Saved feature importance plot -> figures/feature_importance.png`.
+
+**Analysis results:**
+
+| Model | accuracy | precision | recall | F1 |
+|---|---|---|---|---|
+| Dummy (always "no failure") | 96.60% | 0.00% | 0.00% | 0.00% |
+| Logistic Regression | 85.75% | 17.61% | 86.76% | 29.28% |
+| Random Forest | 98.90% | 89.66% | 76.47% | 82.54% |
+
+- The **Dummy baseline exposes the accuracy trap**: doing nothing useful
+  still scores 96.6% accuracy on this imbalanced dataset, while missing
+  every single real failure (precision/recall/F1 all 0). Accuracy alone is
+  not a usable metric here.
+- **Logistic Regression** catches most failures (recall 86.76%) but at the
+  cost of many false alarms (precision only 17.61%) — `class_weight="balanced"`
+  pushes it toward "flag anything suspicious."
+- **Random Forest wins on every metric** (F1 = 0.8254): it can model
+  non-linear interactions between features (e.g. torque × speed) that the
+  linear Logistic Regression cannot, and is more robust to the strong
+  correlations between features noted in Day 2.
+- Random Forest's feature importance ranking (Rotational speed > Tool wear
+  > `power` > Torque > `temp_diff` > ...) differs from Day 2's Cohen's d
+  ranking (Torque was the top single feature) — Cohen's d measures each
+  feature's standalone separation, while feature importance reflects
+  multivariate interactions the tree model actually exploits.
+
+### Day 4 (Wed 7/9) — sklearn Pipeline + cross-validated model selection
+
+```bash
+uv run src/pipeline_model.py
+```
+
+Refactors Day 3's ad-hoc scaling into a proper `ColumnTransformer` +
+`Pipeline` (numeric features through `StandardScaler`, the already
+ordinal-encoded `Type` column passed through unscaled), so preprocessing is
+refit on training folds only — no leakage into validation/test data. Compares
+Logistic Regression vs Random Forest with 5-fold `StratifiedKFold`
+cross-validation (mean ± std F1 on the failure class) instead of a single
+train/test split, picks the better pipeline, refits it on the full training
+set, evaluates once on the held-out test set, and saves the fitted pipeline
+with `joblib` to `models/best_pipeline.joblib` (gitignored — regenerate
+locally by running the script).
+
+Success = CV scores print for both pipelines, followed by the selected
+model's held-out test metrics and a
+`Saved fitted pipeline (...) -> models/best_pipeline.joblib` line.
+
+**Analysis results:**
+
+- **5-fold CV F1 (failure class)**: Logistic Regression mean = 0.2734
+  (std = 0.0187) vs Random Forest mean = 0.8120 (std = 0.0507) — Random
+  Forest wins clearly and consistently across folds, not just on one lucky
+  split.
+- **Random Forest selected**; final held-out test evaluation:
+  precision = 0.8871, recall = 0.8088, F1 = 0.8462 — close to, and slightly
+  better than, Day 3's single-split numbers, confirming the model's
+  performance is stable rather than an artifact of one particular split.
+- Random Forest's higher CV standard deviation (0.0507 vs 0.0187) says its
+  score varies more fold-to-fold, but its *worst* fold (0.73) still beats
+  Logistic Regression's *best* fold (0.31) — so the higher mean is a real,
+  reliable advantage, not noise.
