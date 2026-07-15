@@ -10,6 +10,100 @@ This project uses two datasets:
 1. **Social media sentiment data** — the raw CSV and the cleaned output are both excluded via `.gitignore` (`data/*.csv`, `data/*.parquet`); run `src/load_feedback.py` to generate `data/feedback_clean.parquet` locally.
 2. **AI4I 2020 Predictive Maintenance Dataset** — not included in the repo. Download it from [Kaggle](https://www.kaggle.com/datasets/stephanmatzka/predictive-maintenance-dataset-ai4i-2020) or the [UCI Machine Learning Repository](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset), and place the CSV at `data/machine_failure.csv`. See `src/inspect_machine_data.py` for an initial data-quality check.
 
+## Project #0: Predictive Maintenance (AI4I 2020)
+
+### Overview
+
+A manufacturing failure-prediction workflow rebuilt with a modern sklearn
+toolchain (`Pipeline`, `ColumnTransformer`, stratified cross-validation),
+motivated by predictive-maintenance problems seen in real semiconductor
+equipment manufacturing (ASM). The focus is not the model itself but the
+workflow around it: a single train/test split and a headline accuracy
+number are both misleading on this kind of data, and the project is built
+to surface — and defend against — that.
+
+### Data
+
+[AI4I 2020 Predictive Maintenance Dataset](https://archive.ics.uci.edu/dataset/601/ai4i+2020+predictive+maintenance+dataset)
+— 10,000 rows, 5 numeric sensor features (air temperature, process
+temperature, rotational speed, torque, tool wear) plus a machine `Type`
+tier (L/M/H). No missing values. Only **3.39%** of rows are labeled
+`Machine failure = 1` — this class imbalance, not model choice, is the
+central challenge of the project.
+
+### Key Findings
+
+- **A dummy baseline scores 96.6% accuracy with 0% recall.** A classifier
+  that always predicts "no failure" gets a high headline number while
+  missing every real failure — accuracy is not a usable metric on this
+  data; precision/recall/F1 on the failure class are.
+- **Univariate separation (Cohen's d) ranks Torque highest** (d = 1.08),
+  clearly ahead of Tool wear (0.59), Air temperature (0.46), and Rotational
+  speed (−0.24).
+- **Random Forest feature importance ranks Rotational speed above
+  Torque** — the opposite order from the univariate result. Torque and
+  Rotational speed are strongly correlated (r = −0.88), so a model that can
+  use both features jointly distributes the same signal differently than a
+  test that looks at one feature at a time. Univariate and multivariate
+  importance are answering different questions, and they can disagree.
+- **A physically-motivated feature, `power = torque × rotational speed`,
+  lands in the top 3** most important features — evidence that encoding
+  domain knowledge (approximate mechanical load) adds signal beyond the
+  two raw features it's built from.
+
+### Method & Results
+
+Preprocessing (`StandardScaler` on numeric features) is wrapped inside an
+sklearn `Pipeline` together with the classifier, so scaling statistics are
+always fit on training folds only — no leakage into validation or test
+data. Logistic Regression and Random Forest (both `class_weight="balanced"`)
+are compared with 5-fold `StratifiedKFold` cross-validation instead of a
+single split, and the better pipeline is then evaluated once on a held-out
+test set it never saw during model selection.
+
+| Model | CV F1 (mean ± std) | Holdout F1 |
+|---|---|---|
+| Logistic Regression | 0.273 ± 0.019 | — |
+| Random Forest | 0.812 ± 0.051 | **0.846** |
+
+Random Forest wins clearly and consistently across folds (its worst fold,
+0.73, still beats Logistic Regression's best fold, 0.31), and its holdout
+performance (precision 0.887, recall 0.809, F1 0.846) is close to its CV
+mean — evidence the result is stable rather than a lucky split.
+
+### Visuals
+
+![Torque distribution by failure status](figures/dist_torque_nm.png)
+
+Torque is the cleanest univariate signal in the data: the failure and
+no-failure distributions barely overlap.
+
+![Random Forest feature importance](figures/feature_importance.png)
+
+Multivariate importance reshuffles the univariate ranking once correlated
+features (Torque, Rotational speed) and engineered features (`power`) are
+all considered together.
+
+### Repro
+
+```bash
+# 1. Download the dataset from Kaggle or UCI (see Data section above)
+#    and place it at data/machine_failure.csv
+
+# 2. Inspect the raw data (shape, missing values, class balance, consistency checks)
+uv run src/inspect_machine_data.py
+
+# 3. EDA + feature engineering -> data/machine_model_ready.parquet, figures/*.png
+uv run src/eda_machine.py
+
+# 4. Baseline comparison: Dummy vs Logistic Regression vs Random Forest
+uv run src/train_baseline.py
+
+# 5. Final pipeline: leak-safe preprocessing + 5-fold CV model selection
+#    -> models/best_pipeline.joblib
+uv run src/pipeline_model.py
+```
+
 ## Week 1 — build a tiny LLM app while refreshing Python
 
 **Status: complete ✅**
