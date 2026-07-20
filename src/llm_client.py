@@ -34,26 +34,16 @@ def _log_cost(model: str, usage) -> None:
     )
 
 
-def call_llm(prompt: str, model: str = "claude-haiku-4-5-20251001", max_tokens: int = 1024) -> str:
-    """Send one prompt to Claude and return the text response.
-
-    Retries rate limits and server errors (429, 5xx) with exponential backoff,
-    up to MAX_RETRIES attempts. Connection errors (including timeouts) are
-    also retried, since they're transient by nature. Authentication,
-    bad-request, and permission errors are raised immediately — retrying
-    won't change the outcome.
-    """
+def _create_with_retry(**kwargs) -> anthropic.types.Message:
+    """Core retry loop: send a messages.create request with exponential
+    backoff on rate limits, server errors, and connection errors."""
     last_error: Exception | None = None
 
     for attempt in range(MAX_RETRIES):
         try:
-            response = _client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            _log_cost(model, response.usage)
-            return response.content[0].text
+            response = _client.messages.create(**kwargs)
+            _log_cost(kwargs["model"], response.usage)
+            return response
         except anthropic.APIStatusError as error:
             if not _is_retryable(error):
                 raise
@@ -69,3 +59,37 @@ def call_llm(prompt: str, model: str = "claude-haiku-4-5-20251001", max_tokens: 
         time.sleep(delay)
 
     raise last_error
+
+
+def call_llm(prompt: str, model: str = "claude-haiku-4-5-20251001", max_tokens: int = 1024) -> str:
+    """Send one prompt to Claude and return the text response. (Original
+    single-prompt interface, kept for backward compatibility.)"""
+    response = _create_with_retry(
+        model=model,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+def call_llm_messages(
+    messages: list[dict],
+    system: str = "",
+    model: str = "claude-haiku-4-5-20251001",
+    max_tokens: int = 1024,
+    temperature: float = 0.0,
+) -> str:
+    """Send a full conversation (with optional system prompt) to Claude.
+
+    `messages` is a list of {"role": "user"/"assistant", "content": str}.
+    System text goes in the separate `system` parameter — Anthropic's API
+    keeps it outside the messages list, unlike OpenAI's role-based style.
+    """
+    response = _create_with_retry(
+        model=model,
+        max_tokens=max_tokens,
+        system=system,
+        messages=messages,
+        temperature=temperature,
+    )
+    return response.content[0].text
